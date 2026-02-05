@@ -20,7 +20,7 @@ if (!token || !channelId || !message) {
     console.error("HATA: Environment (gizli değişkenler) bölümünde TOKEN, CHANNEL_ID veya MESSAGE eksik!");
 } else {
   
-    setInterval(sendMessage, 3000);
+    setInterval(sendMessage, 5000);
 }
 
 function sendMessage() {
