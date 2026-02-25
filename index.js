@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Hata Korumalı 65 WPM Sistemi Aktif!");
+  res.send("Garantili Sıralı Bot Sistemi Aktif!");
 });
 
 app.listen(PORT, () => {
@@ -23,42 +23,47 @@ if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
     async function startProcess() {
         while (true) { 
             for (const channelId of channelList) {
-                try {
-                    // 1. "Yazıyor..." animasyonu
-                    await axios.post(
-                        `https://discord.com/api/v9/channels/${channelId}/typing`,
-                        {},
-                        { headers: { "Authorization": TOKEN } }
-                    );
+                let sent = false; // Mesajın gönderilip gönderilmediğini kontrol eder
 
-                    // 2. 65 WPM Yazma Süresi
-                    const typingTime = MESSAGE.length * 185;
-                    await new Promise(resolve => setTimeout(resolve, typingTime));
+                while (!sent) { // Mesaj başarıyla atılana kadar bu kanaldan ÇIKMAZ
+                    try {
+                        // 1. "Yazıyor..." animasyonu (65 WPM hızı korunuyor)
+                        await axios.post(
+                            `https://discord.com/api/v9/channels/${channelId}/typing`,
+                            {},
+                            { headers: { "Authorization": TOKEN } }
+                        );
 
-                    // 3. Mesajı Gönder
-                    await axios.post(
-                        `https://discord.com/api/v9/channels/${channelId}/messages`,
-                        { content: MESSAGE },
-                        { headers: { "Authorization": TOKEN } }
-                    );
-                    console.log(`[${channelId}] ✅ Başarılı.`);
+                        const typingTime = MESSAGE.length * 185;
+                        await new Promise(resolve => setTimeout(resolve, typingTime));
 
-                    // 4. GÜVENLİK PAYI: Kanal değiştirmeden önce 2 saniye bekle
-                    // 429 hatalarını önlemek için bu süre kritiktir.
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                        // 2. Mesajı Gönder
+                        await axios.post(
+                            `https://discord.com/api/v9/channels/${channelId}/messages`,
+                            { content: MESSAGE },
+                            { headers: { "Authorization": TOKEN } }
+                        );
 
-                } catch (err) {
-                    if (err.response?.status === 429) {
-                        // Discord "Dur" dediğinde 15 saniye mola ver
-                        const retryAfter = (err.response.data.retry_after * 1000) || 15000;
-                        console.error(`[${channelId}] ⚠️ Hız sınırı! ${Math.round(retryAfter/1000)}sn bekleniyor...`);
-                        await new Promise(resolve => setTimeout(resolve, retryAfter));
-                    } else {
-                        console.error(`[${channelId}] ❌ Hata: ${err.response?.status}. 5sn sonra devam...`);
-                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        console.log(`[${channelId}] ✅ Mesaj başarıyla atıldı. Sıradaki kanala geçiliyor...`);
+                        sent = true; // Gönderildi, while döngüsü biter ve sıradaki kanala (for) geçer.
+
+                        // Kanallar arası kısa bir güvenlik molası (Hataları önlemek için)
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    } catch (err) {
+                        if (err.response?.status === 429) {
+                            // Hız sınırı varsa bekle ama "sent" true olmadığı için aynı kanalı tekrar deneyecek
+                            const retryAfter = (err.response.data.retry_after * 1000) || 10000;
+                            console.error(`[${channelId}] ⚠️ Hız sınırı! ${Math.round(retryAfter/1000)}sn sonra AYNI KANAL tekrar denenecek.`);
+                            await new Promise(resolve => setTimeout(resolve, retryAfter));
+                        } else {
+                            console.error(`[${channelId}] ❌ Hata: ${err.response?.status}. 5sn sonra tekrar denenecek.`);
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                        }
                     }
                 }
             }
+            console.log("Listenin sonuna gelindi. Başa dönülüyor...");
         }
     }
     startProcess();
