@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("Garantili Sıralı Bot Sistemi Aktif!");
+  res.send("75 WPM Hızlı İnsansı Sistem Aktif!");
 });
 
 app.listen(PORT, () => {
@@ -13,57 +13,61 @@ app.listen(PORT, () => {
 
 const TOKEN = process.env.TOKEN; 
 const CHANNEL_IDS = process.env.CHANNEL_IDS;
-const MESSAGE = process.env.MESSAGE;
+// 3 Farklı mesaj değişkeni
+const msgs = [process.env.MESSAGE1, process.env.MESSAGE2, process.env.MESSAGE3];
 
-if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
-    console.error("HATA: Değişkenler eksik!");
+if (!TOKEN || !CHANNEL_IDS || !msgs[0] || !msgs[1] || !msgs[2]) {
+    console.error("HATA: Değişkenler (MESSAGE 1-2-3) eksik!");
 } else {
     const channelList = CHANNEL_IDS.split(",").map(c => c.trim());
-    
+    let msgIndex = 0;
+
     async function startProcess() {
         while (true) { 
             for (const channelId of channelList) {
-                let sent = false; // Mesajın gönderilip gönderilmediğini kontrol eder
+                const currentMessage = msgs[msgIndex % msgs.length];
 
-                while (!sent) { // Mesaj başarıyla atılana kadar bu kanaldan ÇIKMAZ
-                    try {
-                        // 1. "Yazıyor..." animasyonu (65 WPM hızı korunuyor)
-                        await axios.post(
-                            `https://discord.com/api/v9/channels/${channelId}/typing`,
-                            {},
-                            { headers: { "Authorization": TOKEN } }
-                        );
+                try {
+                    // 1. "Yazıyor..." animasyonu
+                    await axios.post(
+                        `https://discord.com/api/v9/channels/${channelId}/typing`,
+                        {},
+                        { headers: { "Authorization": TOKEN } }
+                    );
 
-                        const typingTime = MESSAGE.length * 185;
-                        await new Promise(resolve => setTimeout(resolve, typingTime));
+                    // 2. 75 WPM HESABI: Harf başına 160ms bekleme
+                    const typingTime = currentMessage.length * 160;
+                    console.log(`[${channelId}] 75 WPM hızında yazılıyor... (${Math.round(typingTime)}ms)`);
+                    
+                    await new Promise(resolve => setTimeout(resolve, typingTime));
 
-                        // 2. Mesajı Gönder
-                        await axios.post(
-                            `https://discord.com/api/v9/channels/${channelId}/messages`,
-                            { content: MESSAGE },
-                            { headers: { "Authorization": TOKEN } }
-                        );
+                    // 3. Mesajı Gönder
+                    await axios.post(
+                        `https://discord.com/api/v9/channels/${channelId}/messages`,
+                        { content: currentMessage },
+                        { headers: { "Authorization": TOKEN } }
+                    );
 
-                        console.log(`[${channelId}] ✅ Mesaj başarıyla atıldı. Sıradaki kanala geçiliyor...`);
-                        sent = true; // Gönderildi, while döngüsü biter ve sıradaki kanala (for) geçer.
+                    console.log(`[${channelId}] ✅ Mesaj Atıldı. Sıradaki mesaja geçiliyor.`);
+                    
+                    // Mesaj başarılıysa bir sonrakine geç
+                    msgIndex++;
 
-                        // Kanallar arası kısa bir güvenlik molası (Hataları önlemek için)
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Kanal geçişi için 1.5 saniye mola
+                    await new Promise(resolve => setTimeout(resolve, 1500));
 
-                    } catch (err) {
-                        if (err.response?.status === 429) {
-                            // Hız sınırı varsa bekle ama "sent" true olmadığı için aynı kanalı tekrar deneyecek
-                            const retryAfter = (err.response.data.retry_after * 1000) || 10000;
-                            console.error(`[${channelId}] ⚠️ Hız sınırı! ${Math.round(retryAfter/1000)}sn sonra AYNI KANAL tekrar denenecek.`);
-                            await new Promise(resolve => setTimeout(resolve, retryAfter));
-                        } else {
-                            console.error(`[${channelId}] ❌ Hata: ${err.response?.status}. 5sn sonra tekrar denenecek.`);
-                            await new Promise(resolve => setTimeout(resolve, 5000));
-                        }
+                } catch (err) {
+                    // HATA ALINCA: Beklemeden bu kanalı geç
+                    console.error(`[${channelId}] ⚠️ Hata (${err.response?.status}). Bu kanal atlanıyor...`);
+                    
+                    if (err.response?.status === 429) {
+                        // Rate limit varsa hesabı korumak için 7 saniye mola ver
+                        await new Promise(resolve => setTimeout(resolve, 7000));
                     }
+                    // Döngü otomatik olarak listedeki sonraki channelId'ye geçer.
                 }
             }
-            console.log("Listenin sonuna gelindi. Başa dönülüyor...");
+            console.log("Liste bitti, döngü başa dönüyor.");
         }
     }
     startProcess();
