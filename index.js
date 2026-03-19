@@ -4,7 +4,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-  res.send("100 WPM Sistem Aktif - 2 Saniye Beklemeli");
+  res.send("Güvenli Mod: 5 Saniye Beklemeli Sistem Aktif!");
 });
 
 app.listen(PORT, () => {
@@ -21,43 +21,32 @@ if (!TOKEN || !CHANNEL_IDS || !MESSAGE) {
     const channelList = CHANNEL_IDS.split(",").map(c => c.trim());
     
     async function startProcess() {
-        console.log("Sistem başlatıldı: Kanallar arası 2 saniye bekleme eklendi.");
+        console.log("Sistem Güvenli Modda Başlatıldı: 5 saniye bekleme aktif.");
         
         while (true) { 
             for (const channelId of channelList) {
                 try {
-                    // 1. "Yazıyor..." animasyonu
-                    await axios.post(
-                        `https://discord.com/api/v9/channels/${channelId}/typing`,
-                        {},
-                        { headers: { "Authorization": TOKEN } }
-                    );
-
-                    // 2. Yazma simülasyonu (100 WPM hesabı)
-                    const typingTime = MESSAGE.length * 120;
-                    console.log(`[${channelId}] Yazılıyor: ${Math.round(typingTime)}ms`);
-                    await new Promise(resolve => setTimeout(resolve, typingTime));
-
-                    // 3. Mesajı Gönder
+                    // Mesajı Gönder (Typing animasyonu API yükünü artırdığı için kaldırıldı)
                     await axios.post(
                         `https://discord.com/api/v9/channels/${channelId}/messages`,
                         { content: MESSAGE },
                         { headers: { "Authorization": TOKEN } }
                     );
 
-                    console.log(`[${channelId}] ✅ Mesaj Atıldı. Sonraki kanal için 2 saniye bekleniyor...`);
+                    console.log(`[${channelId}] ✅ Mesaj Gönderildi. 5 saniye bekleniyor...`);
                     
-                    // --- GÜNCELLEME: Kanallar arası 2 saniye bekleme süresi ---
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // --- GÜNCELLEME: Daha güvenli bir aralık için 5 saniye bekleme ---
+                    await new Promise(resolve => setTimeout(resolve, 5000));
 
                 } catch (err) {
                     if (err.response?.status === 429) {
-                        const retryAfter = (err.response.data.retry_after * 1000) || 5000;
-                        console.error(`[${channelId}] ⚠️ Rate Limit! ${Math.round(retryAfter/1000)}sn zorunlu mola.`);
+                        // Discord'un verdiği tam süreyi al, üzerine 2 saniye daha ekle (garanti olsun)
+                        const retryAfter = (err.response.data.retry_after * 1000) + 2000;
+                        console.error(`[${channelId}] ⚠️ Rate Limit! Discord ${Math.round(retryAfter/1000)}sn mola verdi. Bekleniyor...`);
                         await new Promise(resolve => setTimeout(resolve, retryAfter));
                     } else {
-                        console.error(`[${channelId}] ❌ Hata: ${err.response?.status}. 2 saniye sonra devam edilecek.`);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        console.error(`[${channelId}] ❌ Hata: ${err.response?.status}. 5 saniye sonra devam edilecek.`);
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                     }
                 }
             }
